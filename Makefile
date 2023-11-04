@@ -48,7 +48,7 @@ bin/unit_%: src/tests/unit_%.o $(SFS_LIBRARY)
 test-unit: $(SFS_UNIT_TESTS)
 	@for test in bin/unit_*; do 		\
 		echo "Running   $$(basename $$test)";		\
-		$$test> test.log 2>&1;	\
+		$$test;	\
 	done
 
 # Cleans everything
