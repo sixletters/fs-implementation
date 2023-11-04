@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "test.h": "c"
+        "test.h": "c",
+        "sfs.h": "c",
+        "disk.h": "c"
     }
 }
