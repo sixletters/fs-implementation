@@ -7,7 +7,7 @@
 
 #include <unistd.h>
 
-/* Functions */
+// test functions
 
 void test_cleanup() {
     unlink("data/image.unit");
@@ -164,7 +164,7 @@ int test_fs_stat() {
     return EXIT_SUCCESS;
 }
 
-/* Main execution */
+// entry point
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -192,5 +192,3 @@ int main(int argc, char *argv[]) {
 
     return status;
 }
-
-/* vim: set expandtab sts=4 sw=4 ts=8 ft=c: */
