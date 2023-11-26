@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 // Disk Constants
 #define BLOCK_SIZE      (1<<12)   // 4KB, compilation will replace BLOCK_SIZE with 1 bitshifted left by 12
@@ -32,7 +33,7 @@ struct Disk {
 Disk*	disk_open(const char *path, size_t blocks);
 void	disk_close(Disk *disk);
 
-size_t	disk_read(Disk *disk, size_t block, char *data);
-size_t	disk_write(Disk *disk, size_t block, char *data);
+ssize_t	disk_read(Disk *disk, size_t block, char *data);
+ssize_t	disk_write(Disk *disk, size_t block, char *data);
 
 #endif

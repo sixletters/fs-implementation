@@ -2,7 +2,6 @@
 #define UTILS_H
 
 /* Macros */
-
 #define min(a, b)   \
     (((a) < (b)) ? (a) : (b))
 
