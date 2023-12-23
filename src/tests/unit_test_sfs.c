@@ -183,10 +183,10 @@ int main(int argc, char *argv[]) {
     assert(atexit(test_cleanup) == EXIT_SUCCESS);
 
     switch (number) {
-        case 0:  status = test_00_fs_mount(); break;
-        case 1:  status = test_01_fs_create(); break;
-        case 2:  status = test_02_fs_remove(); break;
-        case 3:  status = test_03_fs_stat(); break;
+        case 0:  status = test_fs_mount(); break;
+        case 1:  status = test_fs_create(); break;
+        case 2:  status = test_fs_remove(); break;
+        case 3:  status = test_fs_stat(); break;
         default: fprintf(stderr, "Unknown NUMBER: %d\n", number); break;
     }
 

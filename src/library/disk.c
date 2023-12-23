@@ -2,6 +2,7 @@
 #include "../include/disk.h"
 #include "../include/log.h"
 #include <fcntl.h>
+#include <limits.h>
 #include <unistd.h>
 
 // Perform sanity check
@@ -27,7 +28,27 @@ bool    disk_sanity_check(Disk *disk, size_t blocknum, const char *data);
  **/
 
 Disk* disk_open(const char * path, size_t blocks) {
-    return NULL;
+    // todo: possible to write a function or macro to make the intialization cleaner
+    Disk* disk;
+    int fd;
+    // todo: check if theres a proper way to check this
+    if(blocks == LONG_MAX){
+        debug("Error in block size of %zu", blocks);
+        return NULL;
+    }
+    // open file with create if non existant, read write permission
+    if ((fd = open("output", O_CREAT|O_RDWR, 0777)) == -1) {
+        debug("Error in opening file with path: %s due to: %s", path, strerror(errno));
+        return NULL;
+    };
+    disk = malloc(sizeof(Disk));
+    disk->blocks = blocks;
+    disk->reads = 0;
+    disk->writes = 0;
+    // only set to true when FS is mounted
+    disk->mounted = false;
+    disk->fd = fd;
+    return disk;
 }
 
 /**
@@ -41,6 +62,9 @@ Disk* disk_open(const char * path, size_t blocks) {
  */
 
 void disk_close(Disk *disk) {
+    // todo: possible to write a function or macro to make the intialization cleaner
+    if(close(disk->fd) < 0) debug("error in closing: %s", strerror(errno)); ;
+    free(disk);
 }
 
 /**
@@ -55,7 +79,19 @@ void disk_close(Disk *disk) {
 **/
 
 ssize_t disk_read(Disk* disk, size_t block, char* data){
-    return DISK_FAILURE;
+    if(!disk_sanity_check(disk, block, data)){
+        return DISK_FAILURE;
+    }
+    if(lseek(disk->fd, block * BLOCK_SIZE, SEEK_SET) < 0) {
+        debug("SEEK FAILED");
+        return DISK_FAILURE;
+    }
+    if(read(disk->fd, data, BLOCK_SIZE) < 0 ){
+        debug("error in reading: %s", strerror(errno)); 
+        return DISK_FAILURE;
+    }
+    disk->reads += 1;
+    return BLOCK_SIZE;
 }
 
 /**
@@ -69,7 +105,19 @@ ssize_t disk_read(Disk* disk, size_t block, char* data){
  * @return whether or not it is safe to perform read/write operations
 **/
 ssize_t disk_write(Disk *disk, size_t block, char *data) {
-    return DISK_FAILURE;
+    if(!disk_sanity_check(disk, block, data)){
+        return DISK_FAILURE;
+    }
+    if(lseek(disk->fd, block * BLOCK_SIZE, SEEK_SET) < 0) {
+        debug("SEEK FAILED");
+        return DISK_FAILURE;
+    }
+    if(write(disk->fd, data, BLOCK_SIZE) < 0 ){
+        debug("error in writing: %s", strerror(errno)); 
+        return DISK_FAILURE;
+    }
+    disk->writes += 1;
+    return BLOCK_SIZE;
 }
 
 /**
@@ -82,5 +130,7 @@ ssize_t disk_write(Disk *disk, size_t block, char *data) {
  * @return whether or not it is safe to perform read/write operations
 **/
 bool    disk_sanity_check(Disk *disk, size_t block, const char *data) {
-    return false;
+    if(disk == NULL || data == NULL || block >= disk->blocks) return false;
+    return true;
 }
+  

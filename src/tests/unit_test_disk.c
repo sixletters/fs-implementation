@@ -55,7 +55,6 @@ int test_disk_read() {
     assert(disk_read(disk, DISK_BLOCKS, NULL) == DISK_FAILURE);
 
     for (size_t b = 0; b < DISK_BLOCKS; b++) {
-        debug("Check read block %lu", b);
         assert(disk_read(disk, b, data) == BLOCK_SIZE);
         for (size_t i = 0; i < BLOCK_SIZE; i++) {
             assert(data[i] == b);
@@ -100,6 +99,14 @@ int test_disk_write() {
     return EXIT_SUCCESS;
 }
 
+int test_disk_close() {
+    Disk *disk = disk_open(DISK_PATH, DISK_BLOCKS);
+    assert(disk);
+
+    disk_close(disk);
+    return EXIT_SUCCESS;
+}
+
 // entry point into test
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -108,6 +115,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "    0. Test disk_open\n");
         fprintf(stderr, "    1. Test disk_read\n");
         fprintf(stderr, "    2. Test disk_write\n");
+        fprintf(stderr, "    3. Test disk_close\n");
         return EXIT_FAILURE;
     }
 
@@ -120,6 +128,7 @@ int main(int argc, char *argv[]) {
         case 0:  status = test_disk_open(); break;
         case 1:  status = test_disk_read(); break;
         case 2:  status = test_disk_write(); break;
+        case 3:  status = test_disk_close(); break;
         default: fprintf(stderr, "Unknown NUMBER: %d\n", number); break;
     }
 

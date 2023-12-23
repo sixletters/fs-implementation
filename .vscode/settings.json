@@ -3,6 +3,8 @@
         "test.h": "c",
         "sfs.h": "c",
         "disk.h": "c",
-        "fcntl.h": "c"
+        "fcntl.h": "c",
+        "_types.h": "c",
+        "istream": "c"
     }
 }
