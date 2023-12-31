@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
+const int INODE_SIZE = sizeof(Inode);
+
 /** Debug FS, read superblock and its information, read inode table and report infromation about node
  * 
  * @param disk pointer to disk
@@ -40,7 +42,38 @@ void fs_debug(Disk *disk){
  * 
 **/
 bool fs_format(Disk *disk){
-    return false;
+    if(disk == NULL || disk->mounted) {
+        error("disk has already been mounted or disk is a null pointer");
+        return false;
+    }
+    // create the block and set the appropriate values
+    Block super_block = {
+        .super_block.magic_number = MAGIC_NUMBER,
+        .super_block.total_blocks = disk->blocks,
+        .super_block.inode_blocks = NUM_INODE_BLOCKS,
+        .super_block.blocks = disk->blocks,
+        // todod: what if overflow
+        .super_block.inodes = NUM_INODE_BLOCKS *  INODES_PER_BLOCK,
+        // todo: add block group concepts
+        .super_block.total_inodes =  NUM_INODE_BLOCKS *  INODES_PER_BLOCK,
+    };
+    char data[BLOCK_SIZE];
+    // char empty_data[BLOCK_SIZE];
+    if(!superblock_to_bytes(&super_block, data)){
+        error("unable to convert super block to bytes");
+        return false;
+    }
+    if(disk_write(disk, 0, data) == DISK_FAILURE) {
+        error("error writing super block to disk");
+        return false;
+    }
+    // for(size_t i = 1; i < disk->blocks; i++){
+    //     if(disk_write(disk, i, empty_data) == DISK_FAILURE) {
+    //         error("error writing empty data to disk at blocl numer %zu", i);
+    //         return false;
+    //     }
+    // }
+    return true;
 };
 
 /** Mount a specified FS to given disk by doing the following:
@@ -57,7 +90,22 @@ bool fs_format(Disk *disk){
  * 
 **/
 bool    fs_mount(FileSystem *fs, Disk *disk){
-    return false;
+    if(fs == NULL || disk == NULL){
+        error("fs or disk is a null pointer");
+        return false;
+    }
+    // format the disk with appropriate information
+    if(!fs_format(disk)) {
+        return false;
+    }
+    if(!fs_initialize_meta(fs, disk)){
+        return false;
+    }
+    // intialize free _blocks and also set all to true except inode and super block
+    if(!fs_initialize_free_block_bitmap(fs)){
+        return false;
+    }
+    return true;
 };
 
 /**
@@ -151,5 +199,124 @@ ssize_t fs_read(FileSystem *fs, size_t inode_number, char *data, size_t length, 
  **/
 ssize_t fs_write(FileSystem *fs, size_t inode_number, char *data, size_t length, size_t offset){
     return -1;
+}
+
+// this utilisy function transforms a superblock struct into a char array/ stream of bytes
+// todo: add a byte stream api to easily add and remove values from bytestream
+bool superblock_to_bytes(Block* super_block, char* data) {
+    if(super_block == NULL || data == NULL) return false;
+    // all values in super block are uint32_t integers
+    size_t curr_index = 0;
+    memcpy(data+curr_index, &(super_block->super_block.magic_number), 4);
+    curr_index += 4;
+    
+    memcpy(data+curr_index, &(super_block->super_block.total_blocks), 4);
+    curr_index += 4;
+
+    memcpy(data+curr_index, &(super_block->super_block.total_inodes), 4);
+    curr_index += 4;
+
+    memcpy(data+curr_index, &(super_block->super_block.blocks), 4);
+    curr_index += 4;
+
+    memcpy(data+curr_index, &(super_block->super_block.inode_blocks), 4);
+    curr_index += 4;
+
+    memcpy(data+curr_index, &(super_block->super_block.inodes), 4);
+    curr_index += 4;
+    return true;
+} 
+
+// this utilisy function transforms a superblock struct from a char array/ stream of bytes
+bool superblock_from_bytes(Block* super_block, char* data) {
+    if(super_block == NULL || data == NULL) return false;
+
+    size_t curr_index = 0;
+    memcpy(&(super_block->super_block.magic_number), data+curr_index, 4);
+    curr_index += 4;
+    
+    memcpy(&(super_block->super_block.total_blocks), data+curr_index, 4);
+    curr_index += 4;
+
+    memcpy(&(super_block->super_block.total_inodes), data+curr_index, 4);
+    curr_index += 4;
+
+    memcpy(&(super_block->super_block.blocks), data+curr_index, 4);
+    curr_index += 4;
+
+    memcpy(&(super_block->super_block.inode_blocks), data+curr_index, 4);
+    curr_index += 4;
+
+    memcpy(&(super_block->super_block.inodes), data+curr_index, 4);
+    curr_index += 4;
+    return true;
+} 
+
+// this utilisy function transforms an inode struct from a char array/ stream of bytes
+bool inode_table_from_bytes(Block* inode_table, char* data) {
+    if(inode_table == NULL || data == NULL) return false;
+    for(size_t i = 0; i < INODES_PER_BLOCK; i++){
+        memcpy(inode_table->inodes + i, data+= INODE_SIZE * i, INODE_SIZE);
+    }
+    return true;
+}
+
+// this utility function transforms an inode struct into a char array/ stream of bytes
+bool inode_table_to_bytes(Block* inode_table, char* data) {
+    if(inode_table == NULL || data == NULL) return false;
+    for(size_t i = 0; i < INODES_PER_BLOCK; i ++) {
+        memcpy(data+= INODE_SIZE * i, inode_table->inodes + i, INODE_SIZE);
+    }
+    return true;
+}
+
+// this functiona intializes the in memory block bitmap
+bool fs_initialize_free_block_bitmap(FileSystem *fs){
+    // intialize free _blocks and also set all to true except inode and super block
+    fs->free_blocks = malloc(sizeof(bool) * fs->meta.blocks);
+    for(int i = fs->meta.inode_blocks + 1; i < fs->meta.blocks; i++){
+        fs->free_blocks[i] = true;
+    }
+
+    char buffer[BLOCK_SIZE];
+    Block inode_block;
+    // iterate through the inode blocks
+    for(size_t i = 1; i <= fs->meta.inode_blocks; i++){
+        // read the inode table from disk
+        if(disk_read(fs->disk, i, buffer) < 0){
+            error("error in reading from buffer");
+            return false;
+        }
+        // convert from buffer to inode block in memory struct
+        inode_table_from_bytes(&inode_block,  buffer);
+        // iterate through the inodes, if valid then find the blocks its points to and mark them as used
+        for(int idx = 0; idx < INODES_PER_BLOCK; idx++){
+            if(inode_block.inodes[idx].valid){
+                for(int j = 0; j < POINTERS_PER_INODE; j++){
+                    if(inode_block.inodes[idx].direct[j] > fs->meta.inode_blocks && inode_block.inodes[idx].direct[j] < fs->meta.blocks) {
+                        fs->free_blocks[inode_block.inodes[idx].direct[j]] = false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
+
+// intialize the fs meta from the super block on disk
+bool fs_initialize_meta(FileSystem *fs, Disk* disk){
+    // This should be set to block_size and not sizeof(super_block)
+    char superblock_data[BLOCK_SIZE];
+    Block super_block;
+    if(disk_read(disk, 0, superblock_data) != BLOCK_SIZE){
+        return false;
+    }
+    if(!superblock_from_bytes(&super_block, superblock_data)){
+        return false;
+    }
+    fs->disk = disk;
+    disk->mounted = true;
+    fs->meta = super_block.super_block;
+    return true;
 }
 

@@ -37,7 +37,7 @@ Disk* disk_open(const char * path, size_t blocks) {
         return NULL;
     }
     // open file with create if non existant, read write permission
-    if ((fd = open("output", O_CREAT|O_RDWR, 0777)) == -1) {
+    if ((fd = open(path, O_CREAT|O_RDWR, 0777)) < 0) {
         debug("Error in opening file with path: %s due to: %s", path, strerror(errno));
         return NULL;
     };
@@ -82,12 +82,13 @@ ssize_t disk_read(Disk* disk, size_t block, char* data){
     if(!disk_sanity_check(disk, block, data)){
         return DISK_FAILURE;
     }
-    if(lseek(disk->fd, block * BLOCK_SIZE, SEEK_SET) < 0) {
+    int curr_offset;
+    if((curr_offset = lseek(disk->fd, block * BLOCK_SIZE, SEEK_SET)) < 0) {
         debug("SEEK FAILED");
         return DISK_FAILURE;
     }
     if(read(disk->fd, data, BLOCK_SIZE) < 0 ){
-        debug("error in reading: %s", strerror(errno)); 
+        debug("error in reading: %s at block %zu at offset %d with val %d", strerror(errno), block * BLOCK_SIZE , curr_offset, errno); 
         return DISK_FAILURE;
     }
     disk->reads += 1;

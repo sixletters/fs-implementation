@@ -15,7 +15,8 @@
 // The format routine places this number into the very first bytes of the superblock as a sort of filesystem "signature". 
 // When the filesystem is mounted, the OS looks for this magic number. 
 // If it is correct, then the disk is assumed to contain a valid filesystem. If some other number is present, then the mount fails, perhaps because the disk is not formatted or contains some other kind of data.
-#define MAGIC_NUMBER        (0xf0f03410)  
+#define MAGIC_NUMBER        (0xf0f03410)
+#define NUM_INODE_BLOCKS    (2)    
 #define INODES_PER_BLOCK    (128)   // Number of inodes per block
 #define POINTERS_PER_INODE  (5)    // Number of direct pointers per inode
 #define POINTERS_PER_BLOCK  (1024)  // Number of pointers per block
@@ -92,4 +93,13 @@ ssize_t fs_stat(FileSystem *fs, size_t inode_number);
 ssize_t fs_read(FileSystem *fs, size_t inode_number, char *data, size_t length, size_t offset);
 ssize_t fs_write(FileSystem *fs, size_t inode_number, char *data, size_t length, size_t offset);
 
+// utility functions needed
+bool superblock_to_bytes(Block* supser_block, char* data);
+bool superblock_from_bytes(Block* supser_block, char* data);
+
+bool fs_initialize_free_block_bitmap(FileSystem *fs);
+bool fs_initialize_meta(FileSystem *fs, Disk* disk);
+
+bool inode_table_from_bytes(Block* inode_table, char* data);
+bool inode_table_to_bytes(Block* inode_table, char* data);
 #endif
