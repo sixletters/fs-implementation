@@ -16,7 +16,6 @@
 // When the filesystem is mounted, the OS looks for this magic number. 
 // If it is correct, then the disk is assumed to contain a valid filesystem. If some other number is present, then the mount fails, perhaps because the disk is not formatted or contains some other kind of data.
 #define MAGIC_NUMBER        (0xf0f03410)
-#define NUM_INODE_BLOCKS    (2)    
 #define INODES_PER_BLOCK    (128)   // Number of inodes per block
 #define POINTERS_PER_INODE  (5)    // Number of direct pointers per inode
 #define POINTERS_PER_BLOCK  (1024)  // Number of pointers per block
@@ -98,8 +97,11 @@ bool superblock_to_bytes(Block* supser_block, char* data);
 bool superblock_from_bytes(Block* supser_block, char* data);
 
 bool fs_initialize_free_block_bitmap(FileSystem *fs);
-bool fs_initialize_meta(FileSystem *fs, Disk* disk);
+bool fs_initialize_meta(FileSystem *fs, Block* super_block, Disk* disk);
+bool block_pointers_from_bytes(Block* block_pointers, char *data);
 
 bool inode_table_from_bytes(Block* inode_table, char* data);
 bool inode_table_to_bytes(Block* inode_table, char* data);
+bool get_superblock_from_disk(Disk* disk, Block* super_block);
+bool verify_superblock(Block* super_block, Disk* disk);
 #endif

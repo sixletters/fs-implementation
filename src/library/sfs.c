@@ -4,6 +4,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
+
 
 const int INODE_SIZE = sizeof(Inode);
 
@@ -47,16 +49,13 @@ bool fs_format(Disk *disk){
         return false;
     }
     // create the block and set the appropriate values
-    Block super_block = {
-        .super_block.magic_number = MAGIC_NUMBER,
-        .super_block.total_blocks = disk->blocks,
-        .super_block.inode_blocks = NUM_INODE_BLOCKS,
-        .super_block.blocks = disk->blocks,
-        // todod: what if overflow
-        .super_block.inodes = NUM_INODE_BLOCKS *  INODES_PER_BLOCK,
-        // todo: add block group concepts
-        .super_block.total_inodes =  NUM_INODE_BLOCKS *  INODES_PER_BLOCK,
-    };
+    Block super_block;
+    if(!get_superblock_from_disk(disk, &super_block)){
+        return false;
+    }
+    if(!verify_superblock(&super_block, disk)){
+        return false;
+    }
     char data[BLOCK_SIZE];
     // char empty_data[BLOCK_SIZE];
     if(!superblock_to_bytes(&super_block, data)){
@@ -77,7 +76,7 @@ bool fs_format(Disk *disk){
 };
 
 /** Mount a specified FS to given disk by doing the following:
- * Read and check superblock vertify attributes), 
+ * Read and check superblock vertify attributes, 
  * Record FS disk attribute and set Disk mount status,
  * copy superblock to FS meta attribute, 
  * initilize FS free blocks bitmap
@@ -90,7 +89,7 @@ bool fs_format(Disk *disk){
  * 
 **/
 bool    fs_mount(FileSystem *fs, Disk *disk){
-    if(fs == NULL || disk == NULL){
+    if(fs == NULL || disk == NULL || disk->mounted){
         error("fs or disk is a null pointer");
         return false;
     }
@@ -98,7 +97,11 @@ bool    fs_mount(FileSystem *fs, Disk *disk){
     if(!fs_format(disk)) {
         return false;
     }
-    if(!fs_initialize_meta(fs, disk)){
+    Block super_block;
+    if(!get_superblock_from_disk(disk, &super_block)){
+        return false;
+    }
+    if(!fs_initialize_meta(fs, &super_block, disk)){
         return false;
     }
     // intialize free _blocks and also set all to true except inode and super block
@@ -256,7 +259,15 @@ bool superblock_from_bytes(Block* super_block, char* data) {
 bool inode_table_from_bytes(Block* inode_table, char* data) {
     if(inode_table == NULL || data == NULL) return false;
     for(size_t i = 0; i < INODES_PER_BLOCK; i++){
-        memcpy(inode_table->inodes + i, data+= INODE_SIZE * i, INODE_SIZE);
+        memcpy(inode_table->inodes + i, data + (INODE_SIZE * i), INODE_SIZE);
+    }
+    return true;
+}
+
+bool block_pointers_from_bytes(Block* block_pointers, char *data) {
+    if(block_pointers == NULL || data == NULL) return false;
+    for(size_t i = 0; i < POINTERS_PER_BLOCK; i++){
+        memcpy(block_pointers->block_pointers + i, data + ((i * sizeof(uint32_t))),  sizeof(uint32_t));
     }
     return true;
 }
@@ -274,6 +285,7 @@ bool inode_table_to_bytes(Block* inode_table, char* data) {
 bool fs_initialize_free_block_bitmap(FileSystem *fs){
     // intialize free _blocks and also set all to true except inode and super block
     fs->free_blocks = malloc(sizeof(bool) * fs->meta.blocks);
+    fs->free_blocks[0] = false;
     for(int i = fs->meta.inode_blocks + 1; i < fs->meta.blocks; i++){
         fs->free_blocks[i] = true;
     }
@@ -291,10 +303,27 @@ bool fs_initialize_free_block_bitmap(FileSystem *fs){
         inode_table_from_bytes(&inode_block,  buffer);
         // iterate through the inodes, if valid then find the blocks its points to and mark them as used
         for(int idx = 0; idx < INODES_PER_BLOCK; idx++){
-            if(inode_block.inodes[idx].valid){
+            if(inode_block.inodes[idx].valid == 1){
                 for(int j = 0; j < POINTERS_PER_INODE; j++){
                     if(inode_block.inodes[idx].direct[j] > fs->meta.inode_blocks && inode_block.inodes[idx].direct[j] < fs->meta.blocks) {
                         fs->free_blocks[inode_block.inodes[idx].direct[j]] = false;
+                    }
+                }
+                if(inode_block.inodes[idx].size > POINTERS_PER_INODE * BLOCK_SIZE) {
+                    char data[BLOCK_SIZE];
+                    Block block_pointers;
+                    if(!disk_read(fs->disk, inode_block.inodes[idx].indirect, data)){
+                        return false;
+                    }
+                    if(!block_pointers_from_bytes(&block_pointers, data)){
+                        return false;
+                    }
+                    ssize_t leftoverblocks = (inode_block.inodes[idx].size - (POINTERS_PER_INODE * BLOCK_SIZE));
+                    size_t curr = 0;
+                    while(leftoverblocks > 0){
+                        fs->free_blocks[block_pointers.block_pointers[curr]] = false;
+                        leftoverblocks -= BLOCK_SIZE;
+                        curr += 1;
                     }
                 }
             }
@@ -303,20 +332,38 @@ bool fs_initialize_free_block_bitmap(FileSystem *fs){
     return true;
 }
 
-// intialize the fs meta from the super block on disk
-bool fs_initialize_meta(FileSystem *fs, Disk* disk){
+bool get_superblock_from_disk(Disk* disk, Block* super_block){
     // This should be set to block_size and not sizeof(super_block)
     char superblock_data[BLOCK_SIZE];
-    Block super_block;
     if(disk_read(disk, 0, superblock_data) != BLOCK_SIZE){
         return false;
     }
-    if(!superblock_from_bytes(&super_block, superblock_data)){
+    if(!superblock_from_bytes(super_block, superblock_data)){
         return false;
     }
+    return true;
+}
+
+// intialize the fs meta from the super block on disk
+bool fs_initialize_meta(FileSystem *fs, Block* super_block, Disk* disk){
+    // This should be set to block_size and not sizeof(super_block)
     fs->disk = disk;
     disk->mounted = true;
-    fs->meta = super_block.super_block;
+    fs->meta = (super_block->super_block);
+    return true;
+}
+
+bool verify_superblock(Block* super_block, Disk* disk) {
+    if(super_block == NULL || disk == NULL){
+        return false;
+    }
+    uint32_t num_inode_blocks = round(ceil(0.1 * disk->blocks));
+    super_block->super_block.magic_number = MAGIC_NUMBER;
+    super_block->super_block.blocks = disk->blocks;
+    super_block->super_block.inode_blocks = round(ceil(0.1 * disk->blocks));
+    super_block->super_block.inodes = num_inode_blocks * INODES_PER_BLOCK;
+    super_block->super_block.total_inodes = num_inode_blocks * INODES_PER_BLOCK;
+    super_block->super_block.total_blocks = disk->blocks;
     return true;
 }
 
