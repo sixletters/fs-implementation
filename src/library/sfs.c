@@ -130,6 +130,17 @@ void    fs_unmount(FileSystem *fs){
  * @return      Inode number of allocated Inode.
  **/
 ssize_t fs_create(FileSystem *fs){
+    for(ssize_t i = 1; i < fs->meta.inode_blocks + 1; i++){
+        Block inoder_super_block;
+        if((get_inode_table_from_disk(fs, &inoder_super_block, i)) != i) return -1;
+        for(ssize_t j = 0; j < INODES_PER_BLOCK; j++){
+            if(inoder_super_block.inodes[j].valid == false){
+                inoder_super_block.inodes[j].valid = true;
+                if(!write_inode_table_to_disk(fs, &inoder_super_block, i)) return -1;
+                return (i-1) * INODES_PER_BLOCK + j;
+            }
+        }
+    }
     return -1;
 }
 
@@ -272,7 +283,7 @@ bool inode_table_from_bytes(Block* inode_table, char* data) {
 bool inode_table_to_bytes(Block* inode_table, char* data) {
     if(inode_table == NULL || data == NULL) return false;
     for(size_t i = 0; i < INODES_PER_BLOCK; i ++) {
-        memcpy(data+= INODE_SIZE * i, inode_table->inodes + i, INODE_SIZE);
+        memcpy(data + (INODE_SIZE * i), inode_table->inodes + i, INODE_SIZE);
     }
     return true;
 }
@@ -401,3 +412,25 @@ bool verify_superblock(Block* super_block, Disk* disk) {
     return true;
 }
 
+// Given an inode number, retrieves the corresponding inode table from disk
+// returns the inode offset of that inode in that inode block.
+ssize_t get_inode_table_from_disk(FileSystem *fs, Block* inode_table_block, ssize_t inode_block_number){
+    if(fs==NULL){
+        return -1;
+    }
+    if(fs->disk==NULL) {
+        return -1;
+    }
+    char buffer[BLOCK_SIZE];
+    if(disk_read(fs->disk, inode_block_number, buffer) != BLOCK_SIZE) return -1;
+    if(!inode_table_from_bytes(inode_table_block,  buffer)) return -1;
+    return inode_block_number;
+}
+
+// Function write the inode_table to disk
+bool write_inode_table_to_disk(FileSystem *fs, Block *inode_table_block, ssize_t inode_block_number) {
+    if(fs == NULL || fs->disk == NULL || inode_table_block == NULL) return false;
+    char buffer[BLOCK_SIZE];
+    if(!inode_table_to_bytes(inode_table_block, buffer)) return false;
+    return disk_write(fs->disk, inode_block_number, buffer) != DISK_FAILURE;
+}

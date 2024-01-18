@@ -105,6 +105,11 @@ bool inode_table_to_bytes(Block* inode_table, char* data);
 bool block_pointers_from_bytes(Block* block_pointers, char *data);
 bool block_pointers_to_bytes(Block* block_pointers, char *data);
 
+// block pointser to/from bytes
+ssize_t get_inode_table_from_disk(FileSystem *fs, Block* inode_table_block, ssize_t inode_block_number);
+bool write_inode_table_to_disk(FileSystem *fs, Block *inode_table_block, ssize_t inode_block_number);
+
+
 // intializes the free block bitmap of fs meta
 bool fs_initialize_free_block_bitmap(FileSystem *fs);
 // intializes the meta of fs
