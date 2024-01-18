@@ -125,15 +125,21 @@ void    fs_unmount(FileSystem *fs){
  * Reserve free inode in Inode table.
  *
  * BE SURE TO UPDATE TO DISK
+ * 
+ * todo: use an inode_bitmap instead of iterating through entire inode tables
  *
  * @param       fs      Pointer to FileSystem structure.
  * @return      Inode number of allocated Inode.
  **/
 ssize_t fs_create(FileSystem *fs){
+    // iterate through all the inode blocks
     for(ssize_t i = 1; i < fs->meta.inode_blocks + 1; i++){
         Block inoder_super_block;
+        // retrieve inode from diskc
         if((get_inode_table_from_disk(fs, &inoder_super_block, i)) != i) return -1;
+        // iterate through all inodes inode table
         for(ssize_t j = 0; j < INODES_PER_BLOCK; j++){
+            // if free then handle
             if(inoder_super_block.inodes[j].valid == false){
                 inoder_super_block.inodes[j].valid = true;
                 if(!write_inode_table_to_disk(fs, &inoder_super_block, i)) return -1;
