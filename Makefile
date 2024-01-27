@@ -21,6 +21,7 @@ SFS_CLI = bin/cli
 
 SFS_TEST_SRCS = $(wildcard src/tests/*.c)
 SFS_TEST_OBJS   = $(SFS_TEST_SRCS:.c=.o)
+# path patsubst follows the following form (patsubst pattern,replacement,text)
 SFS_UNIT_TESTS	= $(patsubst src/tests/%,bin/%,$(patsubst %.c,%,$(wildcard src/tests/unit_*.c)))
 
 all: $(SFS_LIBRARY) $(SFS_UNIT_TESTS) $(SFS_CLI)
@@ -37,7 +38,6 @@ $(SFS_LIBRARY):	$(SFS_LIB_OBJS)
 $(SFS_CLI): $(SFS_CLI_OBJS) $(SFS_LIBRARY)
 	@echo "Linking $@ with $^"
 	@$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
-
 
 # This means that all files that match bin/unit_ will be rebuilt with any change to src/tests/unit_%.o and $(SFS_LIBRARY)
 bin/unit_%: src/tests/unit_%.o $(SFS_LIBRARY)

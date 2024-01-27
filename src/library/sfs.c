@@ -163,7 +163,49 @@ ssize_t fs_create(FileSystem *fs){
  * @return      Whether or not removing the specified Inode was successful.
  **/
 bool    fs_remove(FileSystem *fs, size_t inode_number){
-    return false;
+    Block block;
+    int inode_block_number = (inode_number/INODES_PER_BLOCK) + 1;
+    int inode_offset = (inode_number % INODES_PER_BLOCK);
+    if(inode_block_number > fs->meta.inode_blocks){
+        error("inode block number exceeds number of blocks provided");
+        return false;
+    }
+    get_inode_table_from_disk(fs, &block, inode_block_number);
+    if(!block.inodes[inode_offset].valid){
+        error("not valid inode to remove");
+        return false;
+    }
+    for(int i = 0; i < POINTERS_PER_INODE ; i++){
+        fs->free_blocks[block.inodes[inode_offset].direct[i]] = true;
+    }
+    if(block.inodes[inode_offset].size > POINTERS_PER_INODE * BLOCK_SIZE) {
+        // read and free the indirect blocks
+        Block indirect_block;
+        char buffer[BLOCK_SIZE];
+        fs->free_blocks[block.inodes[inode_offset].indirect] = true;
+        if(disk_read(fs->disk, block.inodes[inode_offset].indirect, buffer) != BLOCK_SIZE) {
+            error("error in reading from block");
+            return false;
+        }
+        if(!block_pointers_from_bytes(&indirect_block, buffer)){
+            error("unable to retrieve block pointers from buffer");
+            return false;
+        }
+        ssize_t leftoverblocks = (block.inodes[inode_offset].size - (POINTERS_PER_INODE * BLOCK_SIZE));
+        size_t curr = 0;
+        while(leftoverblocks > 0){
+            fs->free_blocks[indirect_block.block_pointers[curr]] = true;
+            leftoverblocks -= BLOCK_SIZE;
+            curr += 1;
+        }
+    }
+
+    block.inodes[inode_offset].size = 0;
+    block.inodes[inode_offset].valid = false;
+    // write inode table back to disk
+    // I realise I dont have to do all the conversion to stream of bytes, we can simply cast it as an array of bytes and move on.
+    disk_write(fs->disk, inode_block_number,(char*)&block);
+    return true;
 };
 
 /**
@@ -174,6 +216,19 @@ bool    fs_remove(FileSystem *fs, size_t inode_number){
  * @return      Size of specified Inode (-1 if does not exist).
  **/
 ssize_t fs_stat(FileSystem *fs, size_t inode_number){
+    if(fs == NULL) {
+        return -1;
+    }
+    int inode_block_number = (inode_number / INODES_PER_BLOCK )+ 1;
+    if(inode_block_number > fs->meta.inode_blocks){
+        return -1;
+    }
+    int inode_offset = inode_number % INODES_PER_BLOCK;
+    Block block;
+    disk_read(fs->disk, inode_block_number, (char*)(&block));
+    if(block.inodes[inode_offset].valid){
+        return block.inodes[inode_offset].size;
+    } 
     return -1;
 };
 
@@ -348,6 +403,7 @@ bool fs_initialize_free_block_bitmap(FileSystem *fs){
                     }
                 }
                 if(inode_block.inodes[idx].size > POINTERS_PER_INODE * BLOCK_SIZE) {
+                    fs->free_blocks[inode_block.inodes[idx].indirect] = false;
                     char data[BLOCK_SIZE];
                     Block block_pointers;
                     if(!disk_read(fs->disk, inode_block.inodes[idx].indirect, data)){

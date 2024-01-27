@@ -52,7 +52,7 @@ int test_fs_mount() {
     assert(fs.free_blocks[6] == false);
     assert(fs.free_blocks[7] == false);
     assert(fs.free_blocks[8] == false);
-    assert(fs.free_blocks[9] == true);
+    assert(fs.free_blocks[9] == false);
     assert(fs.free_blocks[10] == false);
     assert(fs.free_blocks[11] == false);
     assert(fs.free_blocks[12] == false);
