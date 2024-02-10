@@ -23,7 +23,7 @@ bool    disk_sanity_check(Disk *disk, size_t blocknum, const char *data);
  * @param       path        Path to disk image to create.
  * @param       blocks      Number of blocks to allocate for disk image.
  *
- * @return      Pointer to newly allocated and configured Disk structure (NULL
+ * @return      Pointer to newly allocated and configured Disk structure (NULL (void pointer to 0)
  *              on failure).
  **/
 
@@ -34,12 +34,12 @@ Disk* disk_open(const char * path, size_t blocks) {
     // todo: check if theres a proper way to check this
     if(blocks == LONG_MAX){
         debug("Error in block size of %zu", blocks);
-        return NULL;
+        return (void*)0;
     }
     // open file with create if non existant, read write permission
     if ((fd = open(path, O_CREAT|O_RDWR, 0777)) < 0) {
         debug("Error in opening file with path: %s due to: %s", path, strerror(errno));
-        return NULL;
+        return (void*)0;
     };
     disk = malloc(sizeof(Disk));
     disk->blocks = blocks;
@@ -131,7 +131,7 @@ ssize_t disk_write(Disk *disk, size_t block, char *data) {
  * @return whether or not it is safe to perform read/write operations
 **/
 bool    disk_sanity_check(Disk *disk, size_t block, const char *data) {
-    if(disk == NULL || data == NULL || block >= disk->blocks) return false;
+    if(disk == (void*)0 || data == (void*)0 || block >= disk->blocks) return false;
     return true;
 }
   

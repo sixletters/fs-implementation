@@ -92,24 +92,6 @@ ssize_t fs_stat(FileSystem *fs, size_t inode_number);
 ssize_t fs_read(FileSystem *fs, size_t inode_number, char *data, size_t length, size_t offset);
 ssize_t fs_write(FileSystem *fs, size_t inode_number, char *data, size_t length, size_t offset);
 
-// utility functions needed
-// superblock to/from bytes
-bool superblock_to_bytes(Block* supser_block, char* data);
-bool superblock_from_bytes(Block* supser_block, char* data);
-
-// inode table to/from bytes
-bool inode_table_from_bytes(Block* inode_table, char* data);
-bool inode_table_to_bytes(Block* inode_table, char* data);
-
-// block pointser to/from bytes
-bool block_pointers_from_bytes(Block* block_pointers, char *data);
-bool block_pointers_to_bytes(Block* block_pointers, char *data);
-
-// block pointser to/from bytes
-ssize_t get_inode_table_from_disk(FileSystem *fs, Block* inode_table_block, ssize_t inode_block_number);
-bool write_inode_table_to_disk(FileSystem *fs, Block *inode_table_block, ssize_t inode_block_number);
-
-
 // intializes the free block bitmap of fs meta
 bool fs_initialize_free_block_bitmap(FileSystem *fs);
 // intializes the meta of fs
