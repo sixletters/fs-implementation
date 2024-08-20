@@ -51,6 +51,19 @@ test-unit: $(SFS_UNIT_TESTS)
 	    done				\
 	done
 
+test-disk: $(SFS_UNIT_TESTS)
+	@for test in bin/unit_test_disk; do 		\
+		for i in $$(seq 0 $$($$test 2>&1 | tail -n 1 | awk '{print $$1}')); do \
+			echo "Running   $$(basename $$test) $$i";		\
+	    done				\
+	done
+
+test-fs: $(SFS_UNIT_TESTS)
+	@for test in bin/unit_test_sfs; do 		\
+		for i in $$(seq 0 $$($$test 2>&1 | tail -n 1 | awk '{print $$1}')); do \
+			echo "Running   $$(basename $$test) $$i";		\
+	    done				\
+	done
 
 # Cleans everything
 clean:

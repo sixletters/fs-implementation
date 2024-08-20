@@ -28,8 +28,6 @@ bool    disk_sanity_check(Disk *disk, size_t blocknum, const char *data);
  **/
 
 Disk* disk_open(const char * path, size_t blocks) {
-    // todo: possible to write a function or macro to make the intialization cleaner
-    Disk* disk;
     int fd;
     // todo: check if theres a proper way to check this
     if(blocks == LONG_MAX){
@@ -41,7 +39,7 @@ Disk* disk_open(const char * path, size_t blocks) {
         debug("Error in opening file with path: %s due to: %s", path, strerror(errno));
         return (void*)0;
     };
-    disk = malloc(sizeof(Disk));
+    Disk* disk = malloc(sizeof(Disk));
     disk->blocks = blocks;
     disk->reads = 0;
     disk->writes = 0;
@@ -131,6 +129,7 @@ ssize_t disk_write(Disk *disk, size_t block, char *data) {
  * @return whether or not it is safe to perform read/write operations
 **/
 bool    disk_sanity_check(Disk *disk, size_t block, const char *data) {
+    // blocks are 0 indexed
     if(disk == (void*)0 || data == (void*)0 || block >= disk->blocks) return false;
     return true;
 }

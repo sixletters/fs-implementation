@@ -29,7 +29,6 @@ void fs_debug(Disk *disk){
 
     /* Read Inodes */
     printf("Inodes:\n");
-    printf("    %u blocks\n"         , block.super_block.inodes);
     printf("    %u inode blocks\n"   , block.super_block.inode_blocks);
     printf("    %u inodes\n"         , block.super_block.inodes);
 }
