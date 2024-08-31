@@ -283,20 +283,29 @@ bool fs_initialize_free_block_bitmap(FileSystem *fs){
         // iterate through the ivinodes, if valid then find the blocks its points to and mark them as used
         for(int idx = 0; idx < INODES_PER_BLOCK; idx++){
             if(inode_block.inodes[idx].valid == 1){
+                // for each direct pointer to block, we set the free block entry of that block to false
                 for(int j = 0; j < POINTERS_PER_INODE; j++){
                     if(inode_block.inodes[idx].direct[j] > fs->meta.inode_blocks && inode_block.inodes[idx].direct[j] < fs->meta.blocks) {
                         fs->free_blocks[inode_block.inodes[idx].direct[j]] = false;
                     }
                 }
+                // Check if the size is bigger than total number of direct pointers to block
+                // in which case we can set the indirect block to false, it is being used as a block that holds pointers to other blocks
                 if(inode_block.inodes[idx].size > POINTERS_PER_INODE * BLOCK_SIZE) {
                     fs->free_blocks[inode_block.inodes[idx].indirect] = false;
+
+                    // Read the pointer block from memory 
                     Block block_pointers;
                     if(disk_read(fs->disk, inode_block.inodes[idx].indirect, (char*)(&block_pointers)) != BLOCK_SIZE) return false;
-                    ssize_t leftoverblocks = (inode_block.inodes[idx].size - (POINTERS_PER_INODE * BLOCK_SIZE));
+
+                    // Calculate left over in bytes
+                    ssize_t leftoverblocks_bytes = (inode_block.inodes[idx].size - (POINTERS_PER_INODE * BLOCK_SIZE));
                     size_t curr = 0;
-                    while(leftoverblocks > 0){
+
+                    // while there are still bytes that are left over, we set the free blocks to false
+                    while(leftoverblocks_bytes > 0){
                         fs->free_blocks[block_pointers.block_pointers[curr]] = false;
-                        leftoverblocks -= BLOCK_SIZE;
+                        leftoverblocks_bytes -= BLOCK_SIZE;
                         curr += 1;
                     }
                 }
@@ -335,7 +344,7 @@ bool verify_superblock(Block* super_block, Disk* disk) {
     uint32_t num_inode_blocks = round(ceil(0.1 * disk->blocks));
     super_block->super_block.magic_number = MAGIC_NUMBER;
     super_block->super_block.blocks = disk->blocks;
-    super_block->super_block.inode_blocks = round(ceil(0.1 * disk->blocks));
+    super_block->super_block.inode_blocks = num_inode_blocks;
     super_block->super_block.inodes = num_inode_blocks * INODES_PER_BLOCK;
     super_block->super_block.total_inodes = num_inode_blocks * INODES_PER_BLOCK;
     super_block->super_block.total_blocks = disk->blocks;
