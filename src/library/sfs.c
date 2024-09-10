@@ -8,6 +8,7 @@
 
 
 const int INODE_SIZE = sizeof(Inode);
+ssize_t get_inode(FileSystem *fs, Inode *inode, size_t inode_number);
 
 /** Debug FS, read superblock and its information, read inode table and report infromation about node
  * 
@@ -238,6 +239,12 @@ ssize_t fs_stat(FileSystem *fs, size_t inode_number){
  * @return      Number of bytes read (-1 on error).
  **/
 ssize_t fs_read(FileSystem *fs, size_t inode_number, char *data, size_t length, size_t offset){
+    Inode inode;
+    if(get_inode(fs, &inode, inode_number)){
+        error("error getting inode");
+        return -1;
+    }
+    // todo: implement me
     return -1;
 }
 
@@ -259,6 +266,25 @@ ssize_t fs_read(FileSystem *fs, size_t inode_number, char *data, size_t length, 
  **/
 ssize_t fs_write(FileSystem *fs, size_t inode_number, char *data, size_t length, size_t offset){
     return -1;
+}
+
+ssize_t get_inode(FileSystem *fs, Inode *inode, size_t inode_number) {
+    if(fs == NULL || inode == NULL ){
+        return -1;
+    };
+    int inode_block_number = (inode_number / INODES_PER_BLOCK ) + 1;
+    if(inode_block_number > fs->meta.inode_blocks){
+        error("invalid Inode numbers given");
+        return -1;
+    }
+    int inode_offset = inode_number % INODES_PER_BLOCK;
+    Block block;
+    disk_read(fs->disk, inode_block_number, (char*)(&block));
+    if(!memcpy((char*)inode, (char*)(block.inodes + (sizeof(Inode) * inode_offset)), sizeof(Inode))){
+        error("failed to copy to inode");
+        return -1;
+    }
+    return 1;
 }
 
 /**
