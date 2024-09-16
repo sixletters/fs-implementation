@@ -10,6 +10,7 @@
 const int INODE_SIZE = sizeof(Inode);
 ssize_t get_inode(FileSystem *fs, Inode *inode, size_t inode_number);
 
+
 /** Debug FS, read superblock and its information, read inode table and report infromation about node
  * 
  * @param disk pointer to disk
@@ -244,8 +245,52 @@ ssize_t fs_read(FileSystem *fs, size_t inode_number, char *data, size_t length, 
         error("error getting inode");
         return -1;
     }
-    // todo: implement me
-    return -1;
+    if(!inode.valid) {
+        return -1;
+    }
+    // if either offset or the length + offset is bigger than 
+    // total size in inode then return error
+    if(offset > inode.size || offset + length > inode.size){
+        return -1;
+    }
+
+    // the block to start at in the inode -> the offset divided by block size
+    int block_offset = offset / BLOCK_SIZE;
+    // the byte offset within the block to start at
+    int in_offset = offset % BLOCK_SIZE;
+    // the total number of bytes left to be read
+    int to_read = length;
+    while(to_read > 0) {
+        if (block_offset < 5) {
+            // handle direct
+            // read the corresponding block into buffer
+            Block buffer;
+            disk_read(fs->disk, inode.direct[block_offset], (char*)(&buffer));
+
+            // accoutn for when the offset in the block is 0, in which case only read block
+            // size minus the offset. set offset to 0 as the next block will be read from the start;
+            // increment block_offset and decrement number of bytes left to be read
+            int bytes_to_read_from_block = BLOCK_SIZE - in_offset;
+            memcpy(data, buffer.data, bytes_to_read_from_block);
+            in_offset = 0;
+            to_read -=  bytes_to_read_from_block;
+        } else{
+            // handle indirect
+            Block indirect_pointers;
+            // todo: optimize this so the indirect pointers are not read everytime
+            disk_read(fs->disk, inode.indirect, (char*)(&indirect_pointers));
+
+            Block buffer;
+            disk_read(fs->disk, indirect_pointers.block_pointers[BLOCK_SIZE - POINTERS_PER_INODE], (char*)(&buffer));
+
+            int bytes_to_read_from_block = BLOCK_SIZE - in_offset;
+            in_offset = 0;
+            to_read -=  bytes_to_read_from_block;
+        }
+        block_offset += 1;
+    }
+
+    return length;
 }
 
 /**
@@ -265,7 +310,21 @@ ssize_t fs_read(FileSystem *fs, size_t inode_number, char *data, size_t length, 
  * @return      Number of bytes read (-1 on error).
  **/
 ssize_t fs_write(FileSystem *fs, size_t inode_number, char *data, size_t length, size_t offset){
+    // Inode inode;
+    // if(get_inode(fs, &inode, inode_number)){
+    //     error("error getting inode");
+    //     return -1;
+    // }
+    // if(!inode.valid){
+    //     inode.
+    // }
+    // // if either offset or the length + offset is bigger than 
+    // // total size in inode then return error
+    // if(offset > inode.size || offset + length > inode.size){
+    //     return -1;
+    // }
     return -1;
+
 }
 
 ssize_t get_inode(FileSystem *fs, Inode *inode, size_t inode_number) {
