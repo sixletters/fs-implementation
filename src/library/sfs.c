@@ -250,6 +250,7 @@ ssize_t fs_read(FileSystem *fs, size_t inode_number, char *data, size_t length, 
     }
     // if either offset or the length + offset is bigger than 
     // total size in inode then return error
+    // todo: allow for reading of length past the end of file next time
     if(offset > inode.size || offset + length > inode.size){
         return -1;
     }
@@ -281,7 +282,7 @@ ssize_t fs_read(FileSystem *fs, size_t inode_number, char *data, size_t length, 
             disk_read(fs->disk, inode.indirect, (char*)(&indirect_pointers));
 
             Block buffer;
-            disk_read(fs->disk, indirect_pointers.block_pointers[BLOCK_SIZE - POINTERS_PER_INODE], (char*)(&buffer));
+            disk_read(fs->disk, indirect_pointers.block_pointers[block_offset - POINTERS_PER_INODE], (char*)(&buffer));
 
             int bytes_to_read_from_block = BLOCK_SIZE - in_offset;
             in_offset = 0;
@@ -310,21 +311,102 @@ ssize_t fs_read(FileSystem *fs, size_t inode_number, char *data, size_t length, 
  * @return      Number of bytes read (-1 on error).
  **/
 ssize_t fs_write(FileSystem *fs, size_t inode_number, char *data, size_t length, size_t offset){
-    // Inode inode;
-    // if(get_inode(fs, &inode, inode_number)){
-    //     error("error getting inode");
-    //     return -1;
-    // }
-    // if(!inode.valid){
-    //     inode.
-    // }
-    // // if either offset or the length + offset is bigger than 
-    // // total size in inode then return error
-    // if(offset > inode.size || offset + length > inode.size){
-    //     return -1;
-    // }
-    return -1;
+    Inode inode;
+    if(get_inode(fs, &inode, inode_number)){
+        error("error getting inode");
+        return -1;
+    }
+    // there are 3 cases for a fs_write
+    // 1. When data exists and the new write's offset overlaps with old data
+    // 2. When data exsits and the new write is appended to current data
+    // 3. when data exists and there is a "gap" between current new data and old data, in which
+    // case 0 or null "\0" bytes should be written to the gap
+    if(offset > inode.size) {
+        // the block to start at in the inode -> the offset divided by block size
+        int block_offset = inode.size / BLOCK_SIZE;
+        // the byte offset within the block to start at
+        int in_offset = inode.size % BLOCK_SIZE;
 
+        int block_offset_write = offset / BLOCK_SIZE;
+        int in_offset_write = offset/BLOCK_SIZE;
+        size_t to_set_to_null = offset - inode.size;
+        size_t bound = BLOCK_SIZE;
+        while(to_set_to_null > 0) {
+            if(block_offset == block_offset_write) {
+                bound = in_offset_write;
+            }
+            if (block_offset < 5) {
+                // handle direct
+                // read the corresponding block into buffer
+                Block buffer;
+                disk_read(fs->disk, inode.direct[block_offset], (char*)(&buffer));
+                for(int i = in_offset; i < bound; i++){
+                    buffer.data[in_offset] = NULL;
+                }
+                disk_write(fs->disk, inode.direct[block_offset], (char*)(&buffer));
+                to_set_to_null -= BLOCK_SIZE - in_offset;
+                in_offset = 0;
+            } else{
+                // handle indirect
+                Block indirect_pointers;
+                // todo: optimize this so the indirect pointers are not read everytime
+                disk_read(fs->disk, inode.indirect, (char*)(&indirect_pointers));
+
+                Block buffer;
+                disk_read(fs->disk, indirect_pointers.block_pointers[block_offset - POINTERS_PER_INODE], (char*)(&buffer));
+                for(int i = in_offset; i < bound; i++){
+                    buffer.data[in_offset] = NULL;
+                }
+                disk_write(fs->disk, inode.direct[block_offset], (char*)(&buffer));
+                to_set_to_null -= BLOCK_SIZE - in_offset;
+                in_offset = 0;
+            }
+            block_offset += 1;
+        }
+    }
+
+    int left_to_write = length;
+    int block_offset = inode.size / BLOCK_SIZE;
+    int in_offset = offset/BLOCK_SIZE;
+    char * data_pointer;
+    while(left_to_write > 0) {
+         if (block_offset < 5) {
+            // handle direct
+            // read the corresponding block into buffer
+            Block buffer;
+            disk_read(fs->disk, inode.direct[block_offset], (char*)(&buffer));
+
+            int bytes_to_write = BLOCK_SIZE - in_offset;
+            if(bytes_to_write > left_to_write) {
+                bytes_to_write = left_to_write;
+            }
+            memcpy(data_pointer, buffer.data + in_offset, bytes_to_write);
+            in_offset = 0;
+            data_pointer += bytes_to_write;
+            left_to_write -=  bytes_to_write;
+        } else{
+            // handle indirect
+            Block indirect_pointers;
+            // todo: optimize this so the indirect pointers are not read everytime
+            disk_read(fs->disk, inode.indirect, (char*)(&indirect_pointers));
+        
+            // read the corresponding block into buffer
+            Block buffer;
+            disk_read(fs->disk,  indirect_pointers.block_pointers[block_offset - POINTERS_PER_INODE], (char*)(&buffer));
+
+            int bytes_to_write = BLOCK_SIZE - in_offset;
+            if(bytes_to_write > left_to_write) {
+                bytes_to_write = left_to_write;
+            }
+            memcpy(data_pointer, buffer.data + in_offset, bytes_to_write);
+            in_offset = 0;
+            data_pointer += bytes_to_write;
+            left_to_write -=  bytes_to_write;
+        }
+        block_offset += 1;
+    }
+
+    return length;
 }
 
 ssize_t get_inode(FileSystem *fs, Inode *inode, size_t inode_number) {
